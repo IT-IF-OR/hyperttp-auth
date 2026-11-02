@@ -37,6 +37,7 @@ client.use(
 ```ts
 client.use(
   withAuth({
+    allowedOrigins: ["https://api.example.com"],
     rest: {
       type: "basic",
       username: "service",
@@ -51,6 +52,7 @@ client.use(
 ```ts
 client.use(
   withAuth({
+    allowedOrigins: ["https://api.example.com"],
     rest: {
       type: "api-key",
       location: "header", // or "query"
@@ -89,10 +91,16 @@ Use `shouldAuthenticate(request, requestContext)` to selectively opt out of auth
 
 ## Origin and cache safety
 
-- When `allowedOrigins` is configured, credentials are added **only** to absolute request URLs whose origin matches the allow-list. Requests with relative or unparseable URLs are skipped.
-- `getCacheKey()` is saved to `RequestContext.state` under `AUTH_IDENTITY_STATE_KEY`. The built-in `@hyperttp/cache` and `@hyperttp/inflight` default keys use that value to isolate identities.
+- Built-in credentials require a non-empty HTTP(S) `allowedOrigins` list and apply only to REST. Only matching absolute URLs receive credentials; relative URLs are skipped. Origins cannot contain userinfo, paths, queries or fragments. Redirect safety must be enforced by the sender/transport, not this plugin.
+- `getCacheKey()` is saved to `RequestContext.state` under `AUTH_IDENTITY_STATE_KEY`. Cache/inflight integrations must explicitly include this scope in their keys and exclude credentials. Never serialize the entire authenticated input into a cache key. Without a safe identity scope, skip caching/deduplication of authenticated requests. This package cannot change another plugin’s default keys.
 - Never return access tokens, passwords, or API keys from `getCacheKey()`: `RequestContext.state` is intended for cross-plugin coordination and may be observed by logging or metrics integrations.
 - The plugin does not log credential values.
+
+## Core configuration
+
+`withAuth()` loads `context.config.auth` during `setup()`. Explicit options passed to `withAuth(options)` take precedence. Without either source the plugin is inactive.
+
+Register auth before crypto/cache/inflight plugins in the same phase: `START` alone does not guarantee ordering within that phase.
 
 ## Scope
 

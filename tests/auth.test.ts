@@ -1,4 +1,5 @@
-import type { RequestContext, SendRequest } from "@hyperttp/types";
+import type { IHyperCore, RequestContext, SendRequest } from "@hyperttp/types";
+import { applyCredentials } from "../src/auth.js";
 import { describe, expect, it } from "vitest";
 import { AUTH_IDENTITY_STATE_KEY, withAuth } from "../src/index.js";
 
@@ -16,8 +17,55 @@ function context(): RequestContext {
 }
 
 describe("withAuth", () => {
+  it("requires a trusted origin for built-in credentials", () => {
+    expect(() => withAuth({ bearer: { getToken: () => "secret" } })).toThrow("allowedOrigins");
+  });
+
+  it("rejects built-in credentials on non-REST protocols", () => {
+    expect(() => withAuth({
+      protocol: "grpc",
+      allowedOrigins: ["https://api.example.com"],
+      bearer: { getToken: () => "secret" },
+    })).toThrow("REST only");
+  });
+
+  it("does not attach shorthand Bearer credentials to gRPC", async () => {
+    const plugin = withAuth({
+      allowedOrigins: ["https://api.example.com"],
+      bearer: { getToken: () => "secret" },
+    });
+    expect(await plugin.onRequest?.(request({ url: "https://api.example.com" }, "grpc"))).toBeUndefined();
+  });
+
+  it("loads config.auth during setup and prefers explicit options", async () => {
+    const configured = { allowedOrigins: ["https://api.example.com"], bearer: { getToken: () => "config" } };
+    const plugin = withAuth();
+    plugin.setup?.({ config: { auth: configured }, core: {} as IHyperCore });
+    expect(await plugin.onRequest?.(request({ url: "https://api.example.com" }))).toMatchObject({
+      input: { headers: { authorization: "Bearer config" } },
+    });
+    const explicit = withAuth({ ...configured, bearer: { getToken: () => "explicit" } });
+    explicit.setup?.({ config: { auth: configured }, core: {} as IHyperCore });
+    expect(await explicit.onRequest?.(request({ url: "https://api.example.com" }))).toMatchObject({
+      input: { headers: { authorization: "Bearer explicit" } },
+    });
+  });
+
+  it("is inactive without explicit options or config.auth", async () => {
+    const plugin = withAuth();
+    plugin.setup?.({ config: {}, core: {} as IHyperCore });
+    expect(await plugin.onRequest?.(request({ url: "https://api.example.com" }))).toBeUndefined();
+  });
+
+  it.each(["users", "./users", "../users", "/users"])("preserves query API key path %s", async (path) => {
+    const result = await applyCredentials(request({ url: `${path}?page=1#section` }), {
+      type: "api-key", name: "key", getValue: () => "a b", location: "query",
+    } as import("../src/types.js").RestCredentials);
+    expect(result.input).toEqual({ url: `${path}?page=1&key=a+b#section` });
+  });
   it("adds a Bearer token without mutating the original request", async () => {
     const plugin = withAuth({
+      allowedOrigins: ["https://api.example.com"],
       rest: { type: "bearer", getToken: () => "access-token" },
     });
     const original = request({
@@ -46,6 +94,7 @@ describe("withAuth", () => {
     ["header tuples", [["accept", "application/json"]]],
   ] as const)("preserves %s when adding credentials", async (_kind, headers) => {
     const plugin = withAuth({
+      allowedOrigins: ["https://api.example.com"],
       rest: { type: "bearer", getToken: () => "access-token" },
     });
 
@@ -65,6 +114,7 @@ describe("withAuth", () => {
 
   it("uses the latest Basic-auth password from its provider", async () => {
     const plugin = withAuth({
+      allowedOrigins: ["https://api.example.com"],
       rest: {
         type: "basic",
         username: "service",
@@ -81,6 +131,7 @@ describe("withAuth", () => {
 
   it("places a REST API key in the query string", async () => {
     const plugin = withAuth({
+      allowedOrigins: ["https://api.example.com"],
       rest: {
         type: "api-key",
         location: "query",
@@ -89,10 +140,10 @@ describe("withAuth", () => {
       },
     });
 
-    const result = await plugin.onRequest?.(request({ url: "/users?page=1" }));
+    const result = await plugin.onRequest?.(request({ url: "https://api.example.com/users?page=1" }));
 
     expect(result).toMatchObject({
-      input: { url: "/users?page=1&api_key=key+value" },
+      input: { url: "https://api.example.com/users?page=1&api_key=key+value" },
     });
   });
 
@@ -118,6 +169,7 @@ describe("withAuth", () => {
 
   it("shares only the non-secret auth identity through request state", async () => {
     const plugin = withAuth({
+      allowedOrigins: ["https://api.example.com"],
       bearer: {
         getToken: () => "do-not-store-me",
         getCacheKey: () => "tenant:7:user:42",

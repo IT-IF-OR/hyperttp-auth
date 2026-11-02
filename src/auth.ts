@@ -1,5 +1,5 @@
 import type { SendRequest } from "@hyperttp/types";
-import type { AuthCredentials, ValueProvider } from "./types.js";
+import type { AuthCredentials, AuthPluginOptions, ValueProvider } from "./types.js";
 
 /** Key used to expose a non-secret credential identity to cache/inflight plugins. */
 export const AUTH_IDENTITY_STATE_KEY = "@hyperttp/auth.identity";
@@ -9,12 +9,7 @@ export interface ResolvedAuthOptions {
   readonly identityProvider?: ValueProvider;
 }
 
-export function resolveAuthOptions(options: {
-  readonly credentials?: AuthCredentials;
-  readonly rest?: AuthCredentials;
-  readonly bearer?: AuthCredentials;
-  readonly getCacheKey?: ValueProvider;
-}): ResolvedAuthOptions {
+export function resolveAuthOptions(options: AuthPluginOptions): ResolvedAuthOptions {
   const credentials = options.rest ?? options.credentials ?? options.bearer;
   return {
     credentials,
@@ -22,9 +17,16 @@ export function resolveAuthOptions(options: {
   };
 }
 
-export function assertAuthConfiguration(options: ResolvedAuthOptions, hasApply: boolean): void {
-  if (!options.credentials && !hasApply) {
+export function assertAuthConfiguration(options: AuthPluginOptions): void {
+  const { credentials } = resolveAuthOptions(options);
+  if (!credentials && !options.apply) {
     throw new TypeError("withAuth requires credentials, rest, bearer, or apply");
+  }
+  if (credentials && options.protocol && options.protocol !== "rest") {
+    throw new TypeError("Built-in credentials support REST only; use apply for other protocols");
+  }
+  if (credentials && !options.allowedOrigins?.length) {
+    throw new TypeError("Built-in credentials require a non-empty allowedOrigins list");
   }
 }
 
@@ -84,15 +86,19 @@ function withQueryParameter(request: SendRequest, name: string, value: string): 
   if (!isRecord(request.input) || typeof request.input.url !== "string") return request;
 
   const url = request.input.url;
-  const absolute = isAbsoluteUrl(url);
-  const parsed = new URL(url, "http://hyperttp.invalid");
-  parsed.searchParams.set(name, value);
+  const hashIndex = url.indexOf("#");
+  const fragment = hashIndex < 0 ? "" : url.slice(hashIndex);
+  const target = hashIndex < 0 ? url : url.slice(0, hashIndex);
+  const queryIndex = target.indexOf("?");
+  const path = queryIndex < 0 ? target : target.slice(0, queryIndex);
+  const query = new URLSearchParams(queryIndex < 0 ? "" : target.slice(queryIndex + 1));
+  query.set(name, value);
 
   return {
     ...request,
     input: {
       ...request.input,
-      url: absolute ? parsed.toString() : `${parsed.pathname}${parsed.search}${parsed.hash}`,
+      url: `${path}?${query}${fragment}`,
     },
   };
 }
@@ -132,7 +138,18 @@ export function normalizeOrigins(
   const normalized = new Set<string>();
   for (const origin of origins) {
     try {
-      normalized.add(new URL(origin).origin);
+      const parsed = new URL(origin);
+      if (
+        !["http:", "https:"].includes(parsed.protocol) ||
+        parsed.username ||
+        parsed.password ||
+        parsed.pathname !== "/" ||
+        parsed.search ||
+        parsed.hash
+      ) {
+        throw new TypeError("Expected an HTTP(S) origin");
+      }
+      normalized.add(parsed.origin);
     } catch {
       throw new TypeError(`Invalid allowed origin: ${origin}`);
     }
@@ -149,15 +166,6 @@ export function isAllowedOrigin(
 
   try {
     return allowedOrigins.has(new URL(request.input.url).origin);
-  } catch {
-    return false;
-  }
-}
-
-function isAbsoluteUrl(value: string): boolean {
-  try {
-    new URL(value);
-    return true;
   } catch {
     return false;
   }

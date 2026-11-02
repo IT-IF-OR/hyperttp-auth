@@ -4,11 +4,11 @@ export type MaybePromise<T> = T | Promise<T>;
 export type ValueProvider = () => MaybePromise<string | null | undefined>;
 
 export interface AuthPluginOptions {
-  /** Restrict authentication to one protocol. Omit for protocol-agnostic custom adapters. */
+  /** Restrict a custom adapter to one protocol. Built-in credentials support REST only. */
   protocol?: string;
   /**
-   * Origins that may receive credentials. If supplied, a request with no absolute
-   * URL, or a URL outside this allow-list, is left unchanged.
+   * Trusted HTTP(S) origins. Required and non-empty for built-in credentials.
+   * Requests with relative or unparseable URLs are skipped when configured.
    */
   allowedOrigins?: readonly string[];
   /**
@@ -20,7 +20,7 @@ export interface AuthPluginOptions {
   shouldAuthenticate?: (request: SendRequest, context?: RequestContext) => MaybePromise<boolean>;
   /** Apply protocol-specific credentials to a request. */
   apply?: AuthApply;
-  /** Generic credential configuration. API-key query placement is REST-specific. */
+  /** Built-in REST credential configuration. */
   credentials?: AuthCredentials;
   /** Convenience configuration for REST-like inputs with `url` and `headers`. */
   rest?: RestCredentials;

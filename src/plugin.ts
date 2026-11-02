@@ -11,63 +11,63 @@ import type { AuthPluginOptions } from "./types.js";
 
 declare module "@hyperttp/types" {
   interface HyperClientOptions {
-    /** Auth plugin configuration made available to other Hyperttp plugins. */
+    /** Used by withAuth() when no explicit options are provided. */
     auth?: AuthPluginOptions;
   }
 }
 
-/**
- * Creates a blocking, START-phase plugin that attaches credentials to outgoing
- * requests. REST conveniences expect an object input with a `url` and/or
- * `headers` property; other protocols should use `apply`.
- */
+/** Creates a blocking START-phase plugin for outgoing authentication. */
 export function withAuth(options?: AuthPluginOptions): HyperPlugin {
-  if (!options) {
-    return { name: "hyperttp-auth" };
+  function configure(config: AuthPluginOptions) {
+    assertAuthConfiguration(config);
+    const resolved = resolveAuthOptions(config);
+    return {
+      options: config,
+      resolved,
+      allowedOrigins: normalizeOrigins(config.allowedOrigins),
+      protocol: resolved.credentials ? "rest" : config.protocol,
+    };
   }
 
-  const allowedOrigins = normalizeOrigins(options.allowedOrigins);
-  const protocol = options.rest ? "rest" : options.protocol;
-  const resolved = resolveAuthOptions(options);
-  assertAuthConfiguration(resolved, Boolean(options.apply));
+  let configuration = options ? configure(options) : undefined;
 
   return {
     name: "hyperttp-auth",
     phase: "START",
     mode: "blocking",
+    setup(context) {
+      // Resolve per core registration, so a reused plugin cannot retain another
+      // core's fallback config when this core has no auth configuration.
+      const config = options ?? context.config.auth;
+      configuration = config ? configure(config) : undefined;
+    },
     onRequest: async (request, _pluginContext, requestContext) => {
-      if (protocol && request.protocol !== protocol) {
-        return;
-      }
+      const current = configuration;
+      if (!current) return;
+      const { options, resolved, protocol, allowedOrigins } = current;
 
-      if (!isAllowedOrigin(request, allowedOrigins)) {
-        return;
-      }
-
+      if (requestContext) delete requestContext.state[AUTH_IDENTITY_STATE_KEY];
+      if (protocol && request.protocol !== protocol) return;
+      if (!isAllowedOrigin(request, allowedOrigins)) return;
       if (
         options.shouldAuthenticate &&
         !(await options.shouldAuthenticate(request, requestContext))
-      ) {
+      )
         return;
-      }
 
       if (resolved.identityProvider && requestContext) {
         const identity = await resolved.identityProvider();
-        if (identity) {
-          requestContext.state[AUTH_IDENTITY_STATE_KEY] = identity;
-        }
+        if (identity) requestContext.state[AUTH_IDENTITY_STATE_KEY] = identity;
       }
 
       let authenticatedRequest = request;
       if (resolved.credentials) {
         authenticatedRequest = await applyCredentials(authenticatedRequest, resolved.credentials);
       }
-
       if (options.apply) {
         const result = await options.apply(authenticatedRequest, { requestContext });
         authenticatedRequest = result ?? authenticatedRequest;
       }
-
       return authenticatedRequest;
     },
   };

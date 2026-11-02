@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.1] - 2026-11-02
+
+### Fixed
+
+- Restricted built-in Bearer, Basic, and API-key credentials to REST; other protocols use custom `apply()` adapters.
+- Required a non-empty `allowedOrigins` list for built-in credentials and validated HTTP(S) origins without userinfo, paths, queries, or fragments.
+- Preserved relative URL paths and fragments when adding query API keys.
+- Loaded `config.auth` during plugin setup when explicit `withAuth()` options are absent, with explicit options taking precedence.
+- Cleared stale authentication identity from active request contexts before authentication checks.
+
+### Documentation
+
+- Clarified cache/inflight integration requirements: include non-secret authentication identity and exclude credentials from cache keys.
+- Clarified same-phase plugin ordering and sender/transport responsibility for redirect safety.
+- Updated configuration examples to include trusted origins.
+
 ## [1.0.0] - 2026-10-20
 
 ### Added
