@@ -1,7 +1,8 @@
-import type { IHyperCore, RequestContext, SendRequest } from "@hyperttp/types";
+import type { HyperProtocolName, IHyperCore, RequestContext, SendRequest } from "@hyperttp/types";
 import { applyCredentials } from "../src/auth.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { AUTH_IDENTITY_STATE_KEY, withAuth } from "../src/index.js";
+import type { AuthPluginOptions } from "../src/types.js";
 
 function request(input: Record<string, unknown>, protocol = "rest"): SendRequest {
   return { protocol, input };
@@ -17,6 +18,21 @@ function context(): RequestContext {
 }
 
 describe("withAuth", () => {
+  it("accepts canonical custom protocol names and restricts the adapter to that protocol", async () => {
+    expectTypeOf<AuthPluginOptions["protocol"]>().toEqualTypeOf<HyperProtocolName | undefined>();
+    const protocol: HyperProtocolName = "custom-rpc";
+    const plugin = withAuth({
+      protocol,
+      apply: (current) => ({ ...current, input: { authenticated: true } }),
+    });
+
+    expect(await plugin.onRequest?.(request({}, protocol))).toMatchObject({
+      protocol,
+      input: { authenticated: true },
+    });
+    expect(await plugin.onRequest?.(request({}, "other-rpc"))).toBeUndefined();
+  });
+
   it("requires a trusted origin for built-in credentials", () => {
     expect(() => withAuth({ bearer: { getToken: () => "secret" } })).toThrow("allowedOrigins");
   });

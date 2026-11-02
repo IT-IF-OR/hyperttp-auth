@@ -1,11 +1,11 @@
-import type { RequestContext, SendRequest } from "@hyperttp/types";
+import type { HyperProtocolName, RequestContext, SendRequest } from "@hyperttp/types";
 
 export type MaybePromise<T> = T | Promise<T>;
 export type ValueProvider = () => MaybePromise<string | null | undefined>;
 
 export interface AuthPluginOptions {
   /** Restrict a custom adapter to one protocol. Built-in credentials support REST only. */
-  protocol?: string;
+  protocol?: HyperProtocolName;
   /**
    * Trusted HTTP(S) origins. Required and non-empty for built-in credentials.
    * Requests with relative or unparseable URLs are skipped when configured.
