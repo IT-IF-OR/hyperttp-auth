@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.2] - 2026-11-02
+
+### Added
+
+- Marked requests participating in authentication with the non-secret `RequestContext.state["@hyperttp/auth.applied"]` boolean, including custom `apply()` adapters, for conservative cache/inflight integration.
+
+### Fixed
+
+- Cleared stale authentication markers alongside authentication identity before evaluating request eligibility.
+
+### Documentation
+
+- Documented conservative cache/inflight integration, credential-free scoped keys, and auth plugin registration order.
+- Clarified that manually supplied query credentials and nonstandard authentication headers cannot be detected universally.
+
 ## [1.0.1] - 2026-11-02
 
 ### Fixed

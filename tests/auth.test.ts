@@ -22,11 +22,13 @@ describe("withAuth", () => {
   });
 
   it("rejects built-in credentials on non-REST protocols", () => {
-    expect(() => withAuth({
-      protocol: "grpc",
-      allowedOrigins: ["https://api.example.com"],
-      bearer: { getToken: () => "secret" },
-    })).toThrow("REST only");
+    expect(() =>
+      withAuth({
+        protocol: "grpc",
+        allowedOrigins: ["https://api.example.com"],
+        bearer: { getToken: () => "secret" },
+      }),
+    ).toThrow("REST only");
   });
 
   it("does not attach shorthand Bearer credentials to gRPC", async () => {
@@ -34,11 +36,16 @@ describe("withAuth", () => {
       allowedOrigins: ["https://api.example.com"],
       bearer: { getToken: () => "secret" },
     });
-    expect(await plugin.onRequest?.(request({ url: "https://api.example.com" }, "grpc"))).toBeUndefined();
+    expect(
+      await plugin.onRequest?.(request({ url: "https://api.example.com" }, "grpc")),
+    ).toBeUndefined();
   });
 
   it("loads config.auth during setup and prefers explicit options", async () => {
-    const configured = { allowedOrigins: ["https://api.example.com"], bearer: { getToken: () => "config" } };
+    const configured = {
+      allowedOrigins: ["https://api.example.com"],
+      bearer: { getToken: () => "config" },
+    };
     const plugin = withAuth();
     plugin.setup?.({ config: { auth: configured }, core: {} as IHyperCore });
     expect(await plugin.onRequest?.(request({ url: "https://api.example.com" }))).toMatchObject({
@@ -57,12 +64,18 @@ describe("withAuth", () => {
     expect(await plugin.onRequest?.(request({ url: "https://api.example.com" }))).toBeUndefined();
   });
 
-  it.each(["users", "./users", "../users", "/users"])("preserves query API key path %s", async (path) => {
-    const result = await applyCredentials(request({ url: `${path}?page=1#section` }), {
-      type: "api-key", name: "key", getValue: () => "a b", location: "query",
-    } as import("../src/types.js").RestCredentials);
-    expect(result.input).toEqual({ url: `${path}?page=1&key=a+b#section` });
-  });
+  it.each(["users", "./users", "../users", "/users"])(
+    "preserves query API key path %s",
+    async (path) => {
+      const result = await applyCredentials(request({ url: `${path}?page=1#section` }), {
+        type: "api-key",
+        name: "key",
+        getValue: () => "a b",
+        location: "query",
+      } as import("../src/types.js").RestCredentials);
+      expect(result.input).toEqual({ url: `${path}?page=1&key=a+b#section` });
+    },
+  );
   it("adds a Bearer token without mutating the original request", async () => {
     const plugin = withAuth({
       allowedOrigins: ["https://api.example.com"],
@@ -140,7 +153,9 @@ describe("withAuth", () => {
       },
     });
 
-    const result = await plugin.onRequest?.(request({ url: "https://api.example.com/users?page=1" }));
+    const result = await plugin.onRequest?.(
+      request({ url: "https://api.example.com/users?page=1" }),
+    );
 
     expect(result).toMatchObject({
       input: { url: "https://api.example.com/users?page=1&api_key=key+value" },
@@ -184,6 +199,7 @@ describe("withAuth", () => {
     );
 
     expect(requestContext.state).toEqual({
+      "@hyperttp/auth.applied": true,
       [AUTH_IDENTITY_STATE_KEY]: "tenant:7:user:42",
     });
     expect(JSON.stringify(requestContext.state)).not.toContain("do-not-store-me");

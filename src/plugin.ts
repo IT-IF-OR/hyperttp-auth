@@ -46,7 +46,10 @@ export function withAuth(options?: AuthPluginOptions): HyperPlugin {
       if (!current) return;
       const { options, resolved, protocol, allowedOrigins } = current;
 
-      if (requestContext) delete requestContext.state[AUTH_IDENTITY_STATE_KEY];
+      if (requestContext) {
+        delete requestContext.state[AUTH_IDENTITY_STATE_KEY];
+        delete requestContext.state["@hyperttp/auth.applied"];
+      }
       if (protocol && request.protocol !== protocol) return;
       if (!isAllowedOrigin(request, allowedOrigins)) return;
       if (
@@ -60,6 +63,8 @@ export function withAuth(options?: AuthPluginOptions): HyperPlugin {
         if (identity) requestContext.state[AUTH_IDENTITY_STATE_KEY] = identity;
       }
 
+      // Mark even custom adapters conservatively; no secret is stored in state.
+      if (requestContext) requestContext.state["@hyperttp/auth.applied"] = true;
       let authenticatedRequest = request;
       if (resolved.credentials) {
         authenticatedRequest = await applyCredentials(authenticatedRequest, resolved.credentials);

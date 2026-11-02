@@ -105,3 +105,14 @@ Register auth before crypto/cache/inflight plugins in the same phase: `START` al
 ## Scope
 
 The initial version provides credential attachment and identity propagation. Token refresh, single-flight refresh coordination, and protocol-specific server authentication are intentionally outside the current API.
+
+### Conservative authentication defaults
+
+`@hyperttp/auth` marks participating requests with the non-secret
+`RequestContext.state["@hyperttp/auth.applied"]` boolean, including custom adapters.
+Register auth before cache/inflight. Authenticated requests bypass default cache
+and inflight keys. To opt in, supply a credential-free key and a stable non-secret
+identity; cache and inflight refuse requests marked by auth without identity
+even with a custom key. Do not return credentials from key callbacks. Manually supplied query
+or nonstandard header credentials cannot be detected universally: disable these
+plugins or configure safe scoped keys explicitly.

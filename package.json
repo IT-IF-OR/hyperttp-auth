@@ -1,6 +1,6 @@
 {
   "name": "@hyperttp/auth",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Authentication plugin for Hyperttp with dynamic credentials and protocol-specific adapters",
   "type": "module",
   "main": "./dist/index.js",
