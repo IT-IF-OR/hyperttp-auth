@@ -2,6 +2,6 @@
   "version": 3,
   "sources": ["../src/index.ts"],
   "sourcesContent": ["export { AUTH_IDENTITY_STATE_KEY } from \"./auth.js\";\nexport { withAuth } from \"./plugin.js\";\nexport type {\n  ApiKeyCredentials,\n  AuthApply,\n  AuthApplyContext,\n  AuthCredentials,\n  AuthPluginOptions,\n  BasicCredentials,\n  BearerCredentials,\n  MaybePromise,\n  RestCredentials,\n  ValueProvider,\n} from \"./types.js\";\n"],
-  "mappings": "aAAA,OAAS,4BAA+B,YACxC,OAAS,aAAgB",
-  "names": []
+  "mappings": "AAAA,OAAS,2BAAAA,MAA+B,YACxC,OAAS,YAAAC,MAAgB",
+  "names": ["AUTH_IDENTITY_STATE_KEY", "withAuth"]
 }
